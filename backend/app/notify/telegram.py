@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.severity import SEVERITY_ORDER, severity_icon, severity_ko
 from app.models import Alert
-from app.notify import android
+from app.notify import android, email
 
 log = logging.getLogger(__name__)
 API = "https://api.telegram.org/bot{token}/sendMessage"
@@ -98,32 +98,55 @@ def banner_for_disclosure(d) -> tuple:
 def _send(db: Session, body: str, severity: str,
           change_id=None, disclosure_id=None, url: str = None,
           banner_title: str = None, banner_body: str = None) -> Alert:
-    """알림을 보낸다. 환경에 맞는 경로를 알아서 고른다.
+    """알림을 보낸다. 설정된 경로를 모두 쓴다.
 
         1) 갤럭시에서 직접 돌 때  -> 폰 알림창 (Termux:API)
-        2) 서버에서 돌 때         -> 텔레그램
-        3) 둘 다 없으면           -> 로그
+        2) 이메일이 설정돼 있으면 -> 메일
+        3) 텔레그램이 설정돼 있으면 -> 텔레그램
+        4) 아무것도 없으면        -> 로그
+
+    여러 개를 켜두면 모두 보낸다. 하나가 실패해도 나머지는 간다.
     """
     alert = Alert(change_id=change_id, disclosure_id=disclosure_id,
-                  severity=severity, body_ko=body, channel="telegram")
+                  severity=severity, body_ko=body, channel="log")
+    sent_via: List[str] = []
+    errors: List[str] = []
 
-    # 폰에서 직접 돌고 있으면 외부 서비스 없이 바로 알린다
+    # 1) 폰에서 직접 돌고 있으면 외부 서비스 없이 바로 알린다
     if android.available():
-        alert.channel = "android"
-        alert.ok = android.notify(banner_title or body.split("\n")[0],
-                                  banner_body or body, severity, url)
-        alert.sent_at = datetime.now(timezone.utc) if alert.ok else None
-        if not alert.ok:
-            alert.error = "termux-notification 실행 실패"
+        if android.notify(banner_title or body.split("\n")[0],
+                          banner_body or body, severity, url):
+            sent_via.append("android")
+        else:
+            errors.append("폰 알림 실패")
+
+    # 2) 이메일 — 제목만 봐도 무슨 일인지 알 수 있어야 한다
+    if email.available():
+        subject = banner_title or body.split("\n")[0]
+        if email.send(subject, body, url):
+            sent_via.append("email")
+        else:
+            errors.append("이메일 실패")
+
+    if sent_via:
+        alert.channel = "+".join(sent_via)
+        alert.ok = True
+        alert.sent_at = datetime.now(timezone.utc)
+        if errors:
+            alert.error = " / ".join(errors)
         db.add(alert)
         return alert
 
+    # 3) 텔레그램
     if not (settings.telegram_bot_token and settings.telegram_chat_id):
         alert.channel = "log"
         alert.ok = True
         alert.sent_at = datetime.now(timezone.utc)
+        if errors:
+            alert.error = " / ".join(errors)
         log.info("[알림 미설정 - 로그로 대체]\n%s", body)
     else:
+        alert.channel = "telegram"
         try:
             r = httpx.post(
                 API.format(token=settings.telegram_bot_token),

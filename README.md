@@ -155,9 +155,12 @@ frontend/
 
 | 환경 | DB | 화면 | 알림 |
 |---|---|---|---|
-| **GitHub Actions + Pages** | **SQLite (gh-pages 에 보관)** | **정적 파일** | 텔레그램 |
-| 집 PC / 클라우드 (Docker) | PostgreSQL | Next.js 서버 | 텔레그램 |
+| **GitHub Actions + Pages** | **SQLite (gh-pages 에 보관)** | **정적 파일** | **이메일** |
+| 집 PC / 클라우드 (Docker) | PostgreSQL | Next.js 서버 | 이메일 · 텔레그램 |
 | 갤럭시 폰 (Termux) | SQLite | 정적 파일 + FastAPI | 폰 알림창 |
+
+알림은 설정한 것을 **모두** 보낸다 (`app/notify/telegram.py` 의 `_send`).
+하나가 실패해도 나머지는 간다.
 
 화면이 데이터를 읽는 주소는 **세 방식 모두 `data/*.json` 하나뿐이다.**
 서버가 있는 쪽(FastAPI)이 같은 주소로 내려주도록 맞췄다 — 경로를 나누면 한 군데만 틀려도 조용히 깨진다.
@@ -213,7 +216,9 @@ GitHub Actions (1시간마다)
   cd frontend && NEXT_EXPORT=1 NEXT_PUBLIC_BASE_PATH=/biotrial-monitor npm run build
   cd .. && rm -rf site && cp -R frontend/out site && git add -A && git commit && git push
   ```
-- 한계: GitHub 사정으로 실행이 10~20분 늦을 수 있다. 알림은 텔레그램 토큰을 Secrets 에 넣으면 동작한다.
+- **알림**: 이메일이 가장 간단하다 (앱 등록·토큰 만료 없음). [docs/ALERT.md](docs/ALERT.md) 참고.
+  `EMAIL_USER` / `EMAIL_PASSWORD` / `EMAIL_TO` 를 Secrets 에 넣으면 끝.
+- 한계: GitHub 사정으로 실행이 10~20분 늦을 수 있다.
 
 ---
 

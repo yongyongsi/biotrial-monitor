@@ -58,6 +58,12 @@ jobs:
           ALERT_MIN_SEVERITY: ${{ vars.ALERT_MIN_SEVERITY || 'HIGH' }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # 이메일 알림 (저장소 Settings -> Secrets 에 넣으면 동작)
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          SMTP_HOST: ${{ vars.SMTP_HOST }}
+          SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
         run: |
           python -m app.seed
           python -m app.collect_once
