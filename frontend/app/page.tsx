@@ -60,8 +60,10 @@ export default function HomePage() {
   useEffect(() => { void load(days); }, [load, days]);
 
   // 서버가 있으면 '지금 확인하기' 버튼을 보여준다.
-  // GitHub Pages 처럼 서버가 없는 곳에서는 조용히 넘어간다.
+  // GitHub Pages 는 서버가 없는 것이 확실하므로 아예 물어보지 않는다
+  // (괜히 요청했다가 콘솔에 404 가 남는다).
   useEffect(() => {
+    if (window.location.hostname.endsWith("github.io")) return;
     fetch("api/health")
       .then((r) => { if (r.ok) { markServerAvailable(); setHasServer(true); } })
       .catch(() => { /* 서버 없음 — 읽기 전용으로 동작한다 */ });

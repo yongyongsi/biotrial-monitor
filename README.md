@@ -155,8 +155,12 @@ frontend/
 
 | 환경 | DB | 화면 | 알림 |
 |---|---|---|---|
+| **GitHub Actions + Pages** | **SQLite (gh-pages 에 보관)** | **정적 파일** | 텔레그램 |
 | 집 PC / 클라우드 (Docker) | PostgreSQL | Next.js 서버 | 텔레그램 |
-| **갤럭시 폰 (Termux)** | **SQLite** | **정적 파일 + FastAPI** | **폰 알림창** |
+| 갤럭시 폰 (Termux) | SQLite | 정적 파일 + FastAPI | 폰 알림창 |
+
+화면이 데이터를 읽는 주소는 **세 방식 모두 `data/*.json` 하나뿐이다.**
+서버가 있는 쪽(FastAPI)이 같은 주소로 내려주도록 맞췄다 — 경로를 나누면 한 군데만 틀려도 조용히 깨진다.
 
 스키마와 수집 로직은 **하나만 유지한다.** SQLAlchemy 의 방언 변형으로
 `JSONB↔JSON`, `ARRAY↔JSON`, `BIGINT↔INTEGER` 만 자동으로 바뀐다
@@ -185,6 +189,31 @@ docker compose exec backend python -m pytest tests/ -v
 69개. 핵심은 `tests/test_diff.py` 로, 요구사항 11항의 예시 시나리오
 (`Recruiting → Active, not recruiting` / `100 → 120` / `2026-12 → 2027-02`)를
 그대로 재현해 검증한다.
+
+---
+
+## ⭐ GitHub 에서 돌리기 (컴퓨터도 폰 앱도 필요 없음)
+
+GitHub Actions 가 1시간마다 수집하고, GitHub Pages 가 화면을 제공한다.
+**무료이고 카드도 필요 없다.** 폰에는 홈 화면 바로가기만 두면 된다.
+
+> ### https://yongyongsi.github.io/biotrial-monitor/
+
+```
+GitHub Actions (1시간마다)
+  ├─ gh-pages 에서 지난 데이터베이스 가져오기   ← 과거 스냅샷이 있어야 변화를 안다
+  ├─ ClinicalTrials.gov / DART 수집
+  ├─ 화면용 JSON 생성 (site/ + data/)
+  └─ gh-pages 로 force push (항상 1커밋 = 저장소가 안 커진다)
+```
+
+- DART 인증키는 저장소 Secrets 에만 있고 공개 파일에는 들어가지 않는다
+- `site/` 는 미리 빌드해 둔 화면이다. 화면을 고쳤을 때만 다시 만든다:
+  ```bash
+  cd frontend && NEXT_EXPORT=1 NEXT_PUBLIC_BASE_PATH=/biotrial-monitor npm run build
+  cd .. && rm -rf site && cp -R frontend/out site && git add -A && git commit && git push
+  ```
+- 한계: GitHub 사정으로 실행이 10~20분 늦을 수 있다. 알림은 텔레그램 토큰을 Secrets 에 넣으면 동작한다.
 
 ---
 
