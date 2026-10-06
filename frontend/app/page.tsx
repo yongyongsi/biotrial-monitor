@@ -37,6 +37,7 @@ export default function HomePage() {
   // 요구사항 33-12: 첫 화면에 카드를 너무 많이 쌓지 않는다. 필요하면 눌러서 펼친다.
   const [showAllUpdates, setShowAllUpdates] = useState(false);
   const [showAllRegulatory, setShowAllRegulatory] = useState(false);
+  const [showAllNews, setShowAllNews] = useState(false);
 
   // 처음 불러오던 '오늘' 응답이 늦게 도착해, 그사이 사용자가 고른 기간의 결과를
   // 덮어쓰는 문제가 있었다. 요청에 번호를 붙여 마지막 것만 반영한다.
@@ -81,6 +82,7 @@ export default function HomePage() {
     setDays(d);
     setShowAllUpdates(false);
     setShowAllRegulatory(false);
+    setShowAllNews(false);
     try { window.localStorage.setItem(PERIOD_KEY, String(d)); } catch { /* 무시 */ }
   }
 
@@ -247,6 +249,40 @@ export default function HomePage() {
           <button className="btn" onClick={() => setShowAllRegulatory(true)}>
             나머지 {data.regulatory.length - 3}건 더 보기
           </button>
+        )}
+      </section>
+
+      {/* 뉴스 — 공식 정보와 섞이지 않게 따로 둔다 (요구사항 15, 33-10) */}
+      <section className="section">
+        <h2 className="section-title"><span aria-hidden="true">📰</span>언론 보도</h2>
+        <p className="section-note">
+          공식 발표가 아니라 언론이 전한 내용입니다. 중요한 판단은 원문을 확인하세요.
+        </p>
+        {data.news_domestic.length === 0 && data.news_global.length === 0 ? (
+          <div className="empty">
+            <p className="empty-title">{data.period_ko}은 관련 보도가 없습니다</p>
+          </div>
+        ) : (
+          <>
+            {data.news_domestic.length > 0 && (
+              <>
+                <h3 className="sub-head">🇰🇷 국내</h3>
+                {(showAllNews ? data.news_domestic : data.news_domestic.slice(0, 4))
+                  .map((n) => <ChangeCard key={n.id} change={n} />)}
+                {!showAllNews && data.news_domestic.length > 4 && (
+                  <button className="btn" onClick={() => setShowAllNews(true)}>
+                    국내 보도 {data.news_domestic.length - 4}건 더 보기
+                  </button>
+                )}
+              </>
+            )}
+            {data.news_global.length > 0 && (
+              <>
+                <h3 className="sub-head">🌎 해외</h3>
+                {data.news_global.map((n) => <ChangeCard key={n.id} change={n} />)}
+              </>
+            )}
+          </>
         )}
       </section>
 

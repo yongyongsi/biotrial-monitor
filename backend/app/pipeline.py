@@ -18,13 +18,13 @@ from typing import Dict, List, Optional
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
-from app.collectors import ctgov, dart
+from app.collectors import ctgov, dart, news as news_api
 from app.config import settings
 from app.core.diff import content_hash, diff_snapshots, snapshot_hash
 from app.core import severity as sev
 from app.models import (
     ClinicalTrial, ClinicalTrialChange, ClinicalTrialSnapshot,
-    CollectionRun, Company, Disclosure, Drug, RawDocument, Source,
+    CollectionRun, Company, Disclosure, Drug, News, RawDocument, Source,
 )
 from app.notify.telegram import notify_changes, notify_disclosures
 
@@ -393,4 +393,110 @@ def collect_dart(db: Session, force: bool = False) -> CollectionRun:
 
     if fresh:
         notify_disclosures(db, fresh)
+    return run
+
+
+# ---------------------------------------------------------------------------
+# 뉴스
+# ---------------------------------------------------------------------------
+def _watch_keywords(db: Session) -> List[str]:
+    """관심 대상의 모든 이름. 구글뉴스 검색어이자 제목 확인용 필터가 된다."""
+    words: List[str] = []
+    for drug in db.scalars(select(Drug)).all():
+        words += [w for w in ([drug.name_ko, drug.name_en, drug.dev_code]
+                              + list(drug.aliases or [])) if w]
+    for company in db.scalars(select(Company)).all():
+        words += [w for w in ([company.name_ko, company.name_en]
+                              + list(company.aliases or [])) if w]
+    # 숫자만 있는 종목코드는 뉴스 제목 필터로 쓰면 오탐이 많다
+    seen, out = set(), []
+    for w in words:
+        w = w.strip()
+        if len(w) < 3 or w.isdigit() or w.lower() in seen:
+            continue
+        seen.add(w.lower())
+        out.append(w)
+    return out
+
+
+# 검색어는 넓게, 필터는 좁게. 검색어를 늘리면 호출만 늘고 노이즈도 는다.
+SEARCH_TERMS = ("현대바이오", "페니트리움", "제프티")
+
+
+def collect_news(db: Session) -> CollectionRun:
+    """구글뉴스 RSS 에서 관심 대상 뉴스를 모은다."""
+    run = CollectionRun(source_code=news_api.SOURCE_CODE, started_at=_now())
+    db.add(run)
+    db.flush()
+
+    source = db.scalars(select(Source).where(Source.code == news_api.SOURCE_CODE)).first()
+    if source is None:
+        run.ok, run.error = False, "source 'google_news' 가 없습니다. seed 를 먼저 실행하세요."
+        run.finished_at = _now()
+        return run
+
+    keywords = _watch_keywords(db)
+    drugs = db.scalars(select(Drug)).all()
+    companies = db.scalars(select(Company)).all()
+    seen_fp = {n.fingerprint for n in db.scalars(select(News)).all() if n.fingerprint}
+
+    added = 0
+    errors: List[str] = []
+
+    for term in SEARCH_TERMS:
+        try:
+            items = news_api.recent_only(news_api.fetch(term), days=60)
+            run.trials_checked += 1
+            for item in items:
+                title, url = item["title"], item["link"]
+                if not news_api.is_relevant(title, keywords):
+                    continue
+                if db.scalars(select(News).where(News.url == url).limit(1)).first():
+                    continue
+                fp = news_api.fingerprint(title, item.get("published_at"))
+                if fp in seen_fp:        # 같은 사건을 다른 매체가 보도한 것
+                    continue
+
+                low = title.lower()
+                drug = next((d for d in drugs
+                             if any(a and a.lower() in low
+                                    for a in [d.name_ko, d.name_en, d.dev_code])), None)
+                company = next((c for c in companies
+                                if c.name_ko and c.name_ko[:5] in title), None)
+
+                db.add(News(
+                    source_id=source.id,
+                    drug_id=drug.id if drug else None,
+                    company_id=company.id if company else None,
+                    title=title,
+                    url=url,
+                    outlet=item.get("source"),
+                    published_at=item.get("published_at"),
+                    region="KR" if news_api.is_domestic(item.get("source"), title) else "GLOBAL",
+                    severity=news_api.classify(title),
+                    fingerprint=fp,
+                    matched_keyword=term,
+                ))
+                seen_fp.add(fp)
+                added += 1
+            db.flush()
+        except Exception as exc:                   # noqa: BLE001
+            db.rollback()
+            errors.append(f"{term}: {exc}")
+            log.exception("뉴스 수집 실패 %s", term)
+
+    run.changes_detected = added
+    if errors:
+        source.fail_streak += 1
+        source.last_error = " | ".join(errors[:3])
+        run.error = source.last_error
+        run.ok = run.trials_checked > 0
+    else:
+        source.fail_streak = 0
+        source.last_error = None
+        source.last_ok_at = _now()
+        run.ok = True
+    run.finished_at = _now()
+    log.info("뉴스: 검색어 %d개 / 새 기사 %d건", run.trials_checked, added)
+    db.flush()
     return run

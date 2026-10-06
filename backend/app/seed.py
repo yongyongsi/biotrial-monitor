@@ -33,6 +33,8 @@ SOURCES = [
      "https://hyundaibioscience.com/notice", 3600, True),
     ("who_news", "세계보건기구 뉴스 (WHO)", "REGULATOR", "GLOBAL", True, 2,
      "https://www.who.int/rss-feeds/news-english.xml", 10800, True),
+    ("google_news", "구글뉴스 (국내외 언론 통합 검색)", "NEWS", "KR", False, 2,
+     "https://news.google.com/rss/search", 10800, True),
     ("statnews", "STAT News", "NEWS", "GLOBAL", False, 2,
      "https://www.statnews.com/feed/", 10800, True),
     ("medipana", "메디파나뉴스", "NEWS", "KR", False, 2,

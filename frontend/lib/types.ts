@@ -7,7 +7,7 @@ export type Severity = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
  */
 export interface UpdateItem {
   id: string;
-  kind: "TRIAL_CHANGE" | "DISCLOSURE";
+  kind: "TRIAL_CHANGE" | "DISCLOSURE" | "NEWS";
   headline_ko: string;
   detail_ko: string | null;
   old_value_ko: string | null;
@@ -98,6 +98,8 @@ export interface Dashboard {
   changes: UpdateItem[];
   watchlist: Trial[];
   regulatory: UpdateItem[];
+  news_domestic: UpdateItem[];
+  news_global: UpdateItem[];
   latest_outside_window: UpdateItem | null;
   trials_domestic: Trial[];
   trials_global: Trial[];

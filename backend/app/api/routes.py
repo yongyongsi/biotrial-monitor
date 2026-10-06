@@ -22,9 +22,9 @@ from app.core.severity import SEVERITY_ORDER, severity_icon, severity_ko
 from app.db import get_db
 from app.models import (
     ClinicalTrial, ClinicalTrialChange, ClinicalTrialSnapshot,
-    CollectionRun, Disclosure, Drug, Source, Watchlist,
+    CollectionRun, Disclosure, Drug, News, Source, Watchlist,
 )
-from app.pipeline import collect_ctgov, collect_dart
+from app.pipeline import collect_ctgov, collect_dart, collect_news
 
 router = APIRouter(prefix="/api")
 
@@ -124,6 +124,44 @@ def _disclosure_out(d: Disclosure) -> Dict[str, Any]:
         "meta_lines": meta,
         "internal_href": None,
         "external_url": d.url,
+    }
+
+
+def _news_out(n: News) -> Dict[str, Any]:
+    """뉴스 1건 -> 통합 업데이트 카드.
+
+    공식 데이터가 아니라는 점을 반드시 드러낸다 (요구사항 15, 33-10).
+    """
+    meta: List[str] = []
+    bits = [n.drug.name_ko if n.drug else None,
+            n.company.name_ko if n.company else None]
+    line = " · ".join([b for b in bits if b])
+    if line:
+        meta.append(line)
+    if n.published_at:
+        meta.append(f"보도 {date_ko(n.published_at.date())}")
+
+    return {
+        "id": f"news-{n.id}",
+        "kind": "NEWS",
+        "headline_ko": n.title,
+        "detail_ko": None,
+        "old_value_ko": None,
+        "new_value_ko": None,
+        "severity": n.severity,
+        "severity_ko": severity_ko(n.severity),
+        "severity_icon": severity_icon(n.severity),
+        "detected_at": n.published_at.isoformat() if n.published_at else None,
+        "detected_at_ko": date_ko(n.published_at.date()) if n.published_at else "",
+        "detected_relative_ko": relative_ko(n.published_at) if n.published_at else "",
+        "is_read": n.is_read,
+        # 공식 정보가 아님을 제목 옆에 분명히 적는다
+        "source_kind_ko": "📰 언론 보도",
+        "source_name_ko": (n.outlet or "출처 미상") + " — 공식 확인된 사실이 아닙니다",
+        "region_ko": "🇰🇷 국내" if n.region == "KR" else "🌎 해외",
+        "meta_lines": meta,
+        "internal_href": None,
+        "external_url": n.url,
     }
 
 
@@ -269,6 +307,12 @@ def dashboard(days: int = Query(0, ge=0, le=365),
         .group_by(Disclosure.severity)
     ).all():
         counts[sev_code] = counts.get(sev_code, 0) + n
+    for sev_code, n in db.execute(
+        select(News.severity, func.count())
+        .where(News.published_at >= since)
+        .group_by(News.severity)
+    ).all():
+        counts[sev_code] = counts.get(sev_code, 0) + n
     summary = [
         {"severity": s, "severity_ko": severity_ko(s), "icon": severity_icon(s),
          "count": counts.get(s, 0)}
@@ -287,8 +331,15 @@ def dashboard(days: int = Query(0, ge=0, le=365),
         .order_by(desc(Disclosure.rcept_dt), desc(Disclosure.id))
         .limit(50)
     ).all()
+    news_items = db.scalars(
+        select(News).where(News.published_at >= since)
+        .order_by(desc(News.published_at), desc(News.id)).limit(40)
+    ).all()
+
     changes_out = _sorted_updates(
-        [_change_out(c) for c in changes] + [_disclosure_out(d) for d in disclosures]
+        [_change_out(c) for c in changes]
+        + [_disclosure_out(d) for d in disclosures]
+        + [_news_out(n) for n in news_items]
     )
 
     watched = db.scalars(
@@ -329,6 +380,9 @@ def dashboard(days: int = Query(0, ge=0, le=365),
         "changes": changes_out,
         "watchlist": [_trial_out(db, t) for t in watched],
         "regulatory": _sorted_updates([_disclosure_out(d) for d in regulatory], limit=12),
+        # 요구사항 7: 국내/해외를 분리해서 본다
+        "news_domestic": [_news_out(n) for n in news_items if n.region == "KR"][:8],
+        "news_global": [_news_out(n) for n in news_items if n.region != "KR"][:8],
         "latest_outside_window": (
             _disclosure_out(latest_any) if latest_any and
             (not latest_change_any or
@@ -449,16 +503,19 @@ def trigger_collect(force: bool = Query(False, description="dataTimestamp 게이
     db.commit()
     dt = collect_dart(db)
     db.commit()
+    nw = collect_news(db)
+    db.commit()
     return {
         "ok": ct.ok and dt.ok,
         "skipped": ct.skipped and dt.skipped,
         "skip_reason": ct.skip_reason if ct.skipped else None,
         "trials_checked": ct.trials_checked,
         "snapshots_created": ct.snapshots_created,
-        "changes_detected": ct.changes_detected + dt.changes_detected,
+        "changes_detected": ct.changes_detected + dt.changes_detected + nw.changes_detected,
         "ctgov": {"skipped": ct.skipped, "changes": ct.changes_detected, "error": ct.error},
         "dart": {"skipped": dt.skipped, "skip_reason": dt.skip_reason,
                  "new_disclosures": dt.changes_detected, "error": dt.error},
+        "news": {"new_articles": nw.changes_detected, "error": nw.error},
         "error": ct.error or dt.error,
     }
 

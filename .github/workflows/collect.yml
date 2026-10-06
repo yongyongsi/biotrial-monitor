@@ -66,7 +66,7 @@ jobs:
           SMTP_PORT: ${{ vars.SMTP_PORT || '587' }}
         run: |
           python -m app.seed
-          python -m app.collect_once
+          python -m app.collect_once        # 임상시험 + 공시 + 뉴스
 
       - name: 화면용 데이터 만들기
         working-directory: backend

@@ -25,7 +25,7 @@ from app.core.severity import SEVERITY_ORDER, worst
 from app.db import engine, session_scope
 from app.models import Alert
 from app.notify import android
-from app.pipeline import collect_ctgov, collect_dart
+from app.pipeline import collect_ctgov, collect_dart, collect_news
 from app.schema_sync import sync as sync_schema
 
 log = logging.getLogger("collect")
@@ -69,6 +69,10 @@ def run(force: bool = False) -> int:
         dt = collect_dart(db)
         log.info("공시: %s", dt.skip_reason if dt.skipped
                  else f"기업 {dt.trials_checked}개 / 새 공시 {dt.changes_detected}건")
+
+    with session_scope() as db:
+        nw = collect_news(db)
+        log.info("뉴스: %s", nw.error or f"새 기사 {nw.changes_detected}건")
 
     sent = _alerts_since(before)
     if len(sent) >= SUMMARY_THRESHOLD:

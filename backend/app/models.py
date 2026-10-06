@@ -249,6 +249,40 @@ class Disclosure(Base):
     drug: Mapped[Optional[Drug]] = relationship()
 
 
+class News(Base):
+    """뉴스 1건.
+
+    공식 데이터가 아니므로 화면에서 반드시 '뉴스' 로 구분해 보여준다 (요구사항 15, 33-10).
+    같은 사건을 여러 매체가 보도하면 fingerprint 로 묶인다 (요구사항 12).
+    """
+    __tablename__ = "news"
+    __table_args__ = (
+        Index("ix_news_published", "published_at"),
+        Index("ix_news_fingerprint", "fingerprint"),
+    )
+
+    id: Mapped[int] = mapped_column(BigIntPk, primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("source.id"))
+    drug_id: Mapped[Optional[int]] = mapped_column(ForeignKey("drug.id"), nullable=True)
+    company_id: Mapped[Optional[int]] = mapped_column(ForeignKey("company.id"), nullable=True)
+
+    title: Mapped[str] = mapped_column(Text)
+    url: Mapped[str] = mapped_column(Text, unique=True)      # 중복 방지 (요구사항 22)
+    outlet: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    published_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True)
+    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+    region: Mapped[str] = mapped_column(String(16), default="KR")   # KR | GLOBAL
+    severity: Mapped[str] = mapped_column(String(16), default="LOW")
+    fingerprint: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    matched_keyword: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    drug: Mapped[Optional[Drug]] = relationship()
+    company: Mapped[Optional[Company]] = relationship()
+
+
 class Watchlist(Base):
     __tablename__ = "watchlist"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

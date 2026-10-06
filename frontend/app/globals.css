@@ -469,3 +469,18 @@ details.help p {
   line-height: var(--lh-normal);
 }
 .empty .btn { margin-top: 16px; }
+
+/* ---------- 언론 보도 카드 — 공식 정보와 구분 (요구사항 15, 33-10) ---------- */
+.card.sev-NEWS, .card[data-kind="NEWS"] { border-left-color: var(--line-strong); }
+
+/* 섹션 안의 작은 구분 제목 */
+.sub-head {
+  font-size: var(--fs-body);
+  font-weight: 800;
+  color: var(--text-soft);
+  margin: 18px 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.section > .sub-head:first-of-type { margin-top: 4px; }
