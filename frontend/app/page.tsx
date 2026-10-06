@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChangeCard } from "@/components/ChangeCard";
 import { TrialCard } from "@/components/TrialCard";
 import { getDashboard, markServerAvailable, runCollect } from "@/lib/api";
@@ -38,11 +38,19 @@ export default function HomePage() {
   const [showAllUpdates, setShowAllUpdates] = useState(false);
   const [showAllRegulatory, setShowAllRegulatory] = useState(false);
 
+  // 처음 불러오던 '오늘' 응답이 늦게 도착해, 그사이 사용자가 고른 기간의 결과를
+  // 덮어쓰는 문제가 있었다. 요청에 번호를 붙여 마지막 것만 반영한다.
+  const latest = useRef(0);
+
   const load = useCallback(async (d: number) => {
+    const seq = ++latest.current;
     try {
-      setData(await getDashboard(d));
+      const next = await getDashboard(d);
+      if (seq !== latest.current) return;      // 더 최근 요청이 있으면 버린다
+      setData(next);
       setError(null);
     } catch {
+      if (seq !== latest.current) return;
       setError("정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
     }
   }, []);
