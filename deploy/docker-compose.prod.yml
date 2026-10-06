@@ -1,0 +1,92 @@
+# 클라우드 서버용 구성.
+#
+# 로컬(docker-compose.yml)과 다른 점:
+#   - Caddy 리버스 프록시를 앞에 두고 80/443 만 외부에 연다
+#   - DB 와 백엔드 포트는 외부에 노출하지 않는다
+#   - 비밀번호(basic auth)로 전체를 잠근다
+#   - restart: unless-stopped 로 서버 재부팅 후에도 자동 복구된다
+#
+# 실행:  docker compose -f deploy/docker-compose.prod.yml --env-file .env up -d
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: biotrial-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bio
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 를 .env 에 설정하세요}
+      POSTGRES_DB: biotrial
+      TZ: Asia/Seoul
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bio -d biotrial"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ../backend
+    container_name: biotrial-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://bio:${POSTGRES_PASSWORD}@db:5432/biotrial
+      TZ: Asia/Seoul
+      SCHEDULER_ENABLED: "true"
+      CTGOV_POLL_MINUTES: "60"
+      DART_POLL_MINUTES: "30"
+      DART_LOOKBACK_DAYS: "365"
+      ALERT_MIN_SEVERITY: "${ALERT_MIN_SEVERITY:-HIGH}"
+      OPENDART_API_KEY: "${OPENDART_API_KEY:-}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      CORS_ORIGINS: "${SITE_URL:-*}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        # 같은 주소의 /api 를 쓴다 (프록시 뒤라 포트를 따로 열 필요가 없다)
+        NEXT_PUBLIC_API_BASE: "/"
+    container_name: biotrial-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Seoul
+      NEXT_PUBLIC_API_BASE: "/"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: biotrial-caddy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?SITE_ADDRESS 를 .env 에 설정하세요}
+      APP_USER: ${APP_USER:-father}
+      APP_PASSWORD_HASH: ${APP_PASSWORD_HASH:?APP_PASSWORD_HASH 를 .env 에 설정하세요}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

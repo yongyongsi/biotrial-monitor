@@ -1,0 +1,14 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+SQLAlchemy==2.0.36
+psycopg[binary]==3.2.3
+httpx==0.28.1
+APScheduler==3.11.0
+pydantic==2.10.4
+python-dotenv==1.0.1
+# Phase 1 크롤링 계층용 (docs/00_RESEARCH.md 12-1)
+beautifulsoup4==4.12.3
+lxml==5.3.0
+feedparser==6.0.11
+pytest==8.3.4
+tzdata==2024.2

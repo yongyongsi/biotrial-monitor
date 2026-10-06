@@ -1,0 +1,65 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: biotrial-db
+    environment:
+      POSTGRES_USER: bio
+      POSTGRES_PASSWORD: bio
+      POSTGRES_DB: biotrial
+      TZ: Asia/Seoul
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bio -d biotrial"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: biotrial-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql+psycopg://bio:bio@db:5432/biotrial
+      TZ: Asia/Seoul
+      SCHEDULER_ENABLED: "true"
+      CTGOV_POLL_MINUTES: "60"
+      ALERT_MIN_SEVERITY: "${ALERT_MIN_SEVERITY:-HIGH}"
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      TELEGRAM_CHAT_ID: "${TELEGRAM_CHAT_ID:-}"
+      OPENDART_API_KEY: "${OPENDART_API_KEY:-}"
+      DART_POLL_MINUTES: "30"
+      DART_LOOKBACK_DAYS: "365"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000
+    container_name: biotrial-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      TZ: Asia/Seoul
+      NEXT_PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
