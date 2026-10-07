@@ -32,7 +32,15 @@ from app.core import severity as sev
 log = logging.getLogger(__name__)
 
 SOURCE_CODE = "google_news"
-RSS_URL = "https://news.google.com/rss/search?q={q}&hl=ko&gl=KR&ceid=KR:ko"
+RSS_URL = ("https://news.google.com/rss/search"
+           "?q={q}&hl={hl}&gl={gl}&ceid={gl}:{lang}")
+
+# 검색 지역. 한국어 검색만 하면 해외 보도를 통째로 놓친다.
+# 실제로 에볼라 관련 소식은 국내 뉴스에 거의 없고 영문으로만 나왔다.
+LOCALES = {
+    "ko": {"hl": "ko", "gl": "KR", "lang": "ko"},
+    "en": {"hl": "en-US", "gl": "US", "lang": "en"},
+}
 
 # 이름이 비슷하지만 전혀 다른 회사·주제. 제목에 이것만 있으면 버린다.
 EXCLUDE = (
@@ -42,11 +50,16 @@ EXCLUDE = (
 
 # 임상·규제와 직접 관련된 말. 들어 있으면 중요도를 올린다.
 CLINICAL_WORDS = (
+    # 한국어
     "임상", "FDA", "식약처", "승인", "허가", "IND", "투약", "환자", "학회",
     "논문", "결과", "효능", "안전성", "전임상", "병용", "적응증", "품목허가",
+    # 영어 — 해외 보도용
+    "trial", "phase", "approval", "approved", "clinical", "dosing", "patients",
+    "efficacy", "safety", "preclinical", "combination", "antiviral", "oncology",
 )
 # 투자 관점에서 의미 있는 말
-MATERIAL_WORDS = ("계약", "기술이전", "수출", "공급", "지분", "유상증자", "전환사채")
+MATERIAL_WORDS = ("계약", "기술이전", "수출", "공급", "지분", "유상증자", "전환사채",
+                  "license", "partnership", "agreement", "funding", "stake")
 
 
 def _client() -> httpx.Client:
@@ -57,11 +70,12 @@ def _client() -> httpx.Client:
     )
 
 
-def fetch(query: str) -> List[Dict[str, Any]]:
-    """검색어 하나에 대한 뉴스 목록."""
+def fetch(query: str, locale: str = "ko") -> List[Dict[str, Any]]:
+    """검색어 하나에 대한 뉴스 목록. locale 은 'ko' 또는 'en'."""
+    loc = LOCALES.get(locale, LOCALES["ko"])
     try:
         with _client() as c:
-            r = c.get(RSS_URL.format(q=quote(query)))
+            r = c.get(RSS_URL.format(q=quote(query), **loc))
             r.raise_for_status()
             body = r.text
     except Exception as exc:                       # noqa: BLE001
@@ -144,9 +158,10 @@ def classify(title: str) -> str:
     공식 확인이 아니라 보도이므로 CRITICAL 로 올리지 않는다
     (올리려면 공식 출처에서 확인돼야 한다).
     """
-    if any(w in title for w in CLINICAL_WORDS):
+    low = title.lower()
+    if any(w.lower() in low for w in CLINICAL_WORDS):
         return sev.MEDIUM
-    if any(w in title for w in MATERIAL_WORDS):
+    if any(w.lower() in low for w in MATERIAL_WORDS):
         return sev.MEDIUM
     return sev.LOW
 

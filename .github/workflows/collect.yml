@@ -49,6 +49,13 @@ jobs:
       - name: 필요한 것 설치
         run: pip install -q -r backend/requirements-phone.txt
 
+      - name: 테스트 (코드를 고쳤을 때만)
+        if: github.event_name == 'push'
+        working-directory: backend
+        run: |
+          pip install -q pytest
+          python -m pytest tests/ -q
+
       - name: 수집
         working-directory: backend
         env:

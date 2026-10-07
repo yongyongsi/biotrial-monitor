@@ -420,7 +420,17 @@ def _watch_keywords(db: Session) -> List[str]:
 
 
 # 검색어는 넓게, 필터는 좁게. 검색어를 늘리면 호출만 늘고 노이즈도 는다.
-SEARCH_TERMS = ("현대바이오", "페니트리움", "제프티")
+#
+# 한국어만 검색하면 해외 보도를 통째로 놓친다. 실제로 에볼라 관련 소식
+# (XAFTY IC50 Data for Ebola 등)은 국내 뉴스에 거의 없고 영문으로만 나왔다.
+SEARCHES = (
+    ("현대바이오", "ko"),
+    ("페니트리움", "ko"),
+    ("제프티", "ko"),
+    ('"Hyundai Bioscience"', "en"),
+    ('"Penetrium"', "en"),
+    ('Xafty OR "CP-COV03"', "en"),
+)
 
 
 def collect_news(db: Session) -> CollectionRun:
@@ -443,9 +453,9 @@ def collect_news(db: Session) -> CollectionRun:
     added = 0
     errors: List[str] = []
 
-    for term in SEARCH_TERMS:
+    for term, locale in SEARCHES:
         try:
-            items = news_api.recent_only(news_api.fetch(term), days=60)
+            items = news_api.recent_only(news_api.fetch(term, locale), days=60)
             run.trials_checked += 1
             for item in items:
                 title, url = item["title"], item["link"]

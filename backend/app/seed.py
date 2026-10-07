@@ -70,9 +70,9 @@ def seed(db: Session) -> None:
          ["현대바이오", "현대바이오사이언스", "Hyundai Bioscience", "Hyundai Bio",
           "HyundaiBio", "048410"],
          "https://hyundaibioscience.com/notice"),
-        ("페니트리움바이오", "Penetrium Bio", "01409022", "187660",
-         ["페니트리움바이오", "페니트리움", "Penetrium Bio", "Penetrium", "187660",
-          "현대ADM바이오"],
+        ("페니트리움바이오", "Penetrium Bioscience", "01409022", "187660",
+         ["페니트리움바이오", "페니트리움", "Penetrium Bioscience", "Penetrium Bio",
+          "Penetrium", "187660", "현대ADM바이오"],
          None),
     ]:
         c = db.scalars(select(Company).where(Company.name_ko == name_ko)).first()
@@ -120,7 +120,7 @@ def seed(db: Session) -> None:
         ("댕기열", "Dengue", ["댕기열", "뎅기열", "Dengue", "dengue fever", "DENV"]),
         ("거세저항성 전립선암", "Castration-Resistant Prostate Cancer",
          ["전립선암", "CRPC", "prostate cancer", "거세저항성"]),
-        ("에볼라", "Ebola", ["에볼라", "Ebola", "EVD"]),
+        ("에볼라", "Ebola", ["에볼라", "Ebola", "EVD", "Ebola virus"]),
         ("코로나19", "COVID-19", ["코로나", "COVID-19", "COVID", "SARS-CoV-2"]),
         ("인플루엔자", "Influenza", ["독감", "인플루엔자", "Influenza", "flu"]),
         ("재발성·불응성 진행성 고형암", "Relapsed/Refractory Advanced Solid Tumor",

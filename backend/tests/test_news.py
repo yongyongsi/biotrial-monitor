@@ -127,3 +127,62 @@ def test_다른_날_기사는_다른_지문이다():
     a = news.fingerprint(t, datetime(2026, 9, 14, tzinfo=timezone.utc))
     b = news.fingerprint(t, datetime(2026, 10, 1, tzinfo=timezone.utc))
     assert a != b
+
+
+# ---------------------------------------------------------------------------
+# 해외 보도 (영문)
+#
+# 한국어만 검색하면 통째로 놓치는 것이 있다. 아래는 2026-10-07 실제 검색 결과.
+# 특히 에볼라 소식은 국내 뉴스에 거의 없고 영문으로만 나왔다.
+# ---------------------------------------------------------------------------
+# 실제 시스템은 약물 별칭까지 검색어로 쓴다 (제프티 = 니클로사마이드 기반)
+EN_KEYWORDS = KEYWORDS + ["Hyundai Bioscience", "Penetrium Bioscience", "XAFTY",
+                          "niclosamide"]
+
+
+@pytest.mark.parametrize("title", [
+    "Hyundai Bioscience Discloses XAFTY®'s IC50 Data for Ebola",
+    "Hyundai Bioscience Confirms Entry into U.S. FDA Phase 2 Trials",
+    "Hyundai Bioscience joins dengue fever clinical trial in Vietnam",
+    "Penetrium Bioscience to unveil global Phase 2 trial strategy",
+    "Penetrium Bioscience Unveils Breakthrough Mechanism Solving 13-year puzzle",
+])
+def test_영문_관심_뉴스도_통과한다(title):
+    assert news.is_relevant(title, EN_KEYWORDS) is True
+
+
+@pytest.mark.parametrize("title", [
+    "Hyundai Motor unveils new electric SUV lineup",      # 자동차 회사
+    "Samsung Biologics signs contract with Pfizer",       # 다른 회사
+    "Pfizer reports strong Q3 oncology results",
+])
+def test_무관한_영문_뉴스는_걸러낸다(title):
+    assert news.is_relevant(title, EN_KEYWORDS) is False
+
+
+def test_기반물질_이름만_있어도_가져온다():
+    """제프티는 니클로사마이드 기반이고 에볼라는 관심 질환 2순위다.
+    회사 이름이 없어도 놓치면 안 된다."""
+    assert news.is_relevant("Niclosamide Shows Antiviral Activity Against Ebola",
+                            EN_KEYWORDS) is True
+
+
+def test_영문_제목도_임상_관련이면_등급이_올라간다():
+    assert news.classify("Hyundai Bioscience Confirms Entry into U.S. FDA Phase 2 Trials") == sev.MEDIUM
+    assert news.classify("Penetrium Bioscience to unveil global Phase 2 trial strategy") == sev.MEDIUM
+    assert news.classify("Enterprise value to EBIT forward of Penetrium Bioscience") == sev.LOW
+
+
+def test_영문_제목은_해외로_분류된다():
+    assert news.is_domestic("Korea Biomedical Review",
+                            "Hyundai Bioscience Discloses XAFTY IC50 Data") is False
+    assert news.is_domestic(None,
+                            "Penetrium Bioscience to unveil global Phase 2") is False
+
+
+def test_검색_지역에_따라_주소가_달라진다():
+    ko = news.RSS_URL.format(q="test", **news.LOCALES["ko"])
+    en = news.RSS_URL.format(q="test", **news.LOCALES["en"])
+    assert "hl=ko" in ko and "gl=KR" in ko
+    assert "hl=en-US" in en and "gl=US" in en
+    assert ko != en
