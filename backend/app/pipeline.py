@@ -424,12 +424,18 @@ def _watch_keywords(db: Session) -> List[str]:
 # 한국어만 검색하면 해외 보도를 통째로 놓친다. 실제로 에볼라 관련 소식
 # (XAFTY IC50 Data for Ebola 등)은 국내 뉴스에 거의 없고 영문으로만 나왔다.
 SEARCHES = (
+    # 국내
     ("현대바이오", "ko"),
     ("페니트리움", "ko"),
     ("제프티", "ko"),
+    # 해외 — 에볼라 소식은 영문으로만 나왔다
     ('"Hyundai Bioscience"', "en"),
     ('"Penetrium"', "en"),
     ('Xafty OR "CP-COV03"', "en"),
+    # 베트남 — 댕기열 임상이 현지에서 진행 중이라 현지 보도가 가장 빠를 수 있다.
+    # 질환명만으로 검색하면 뎅기열 유행 기사가 쏟아지므로 회사·약물 이름을 함께 건다.
+    ('"Hyundai Bioscience"', "vi"),
+    ('"Xafty" OR "CP-COV03"', "vi"),
 )
 
 

@@ -186,3 +186,45 @@ def test_검색_지역에_따라_주소가_달라진다():
     assert "hl=ko" in ko and "gl=KR" in ko
     assert "hl=en-US" in en and "gl=US" in en
     assert ko != en
+
+
+# ---------------------------------------------------------------------------
+# 베트남 현지 보도
+#
+# 댕기열 임상(NCT07576868)이 베트남 2개 기관에서 진행 중이라
+# 현지 보도가 국내보다 빠를 수 있다. 아래는 2026-10-08 실제 검색 결과.
+# ---------------------------------------------------------------------------
+VI_KEYWORDS = EN_KEYWORDS + ["Hyundai Bioscience"]
+
+
+def test_베트남어_제목도_가져온다():
+    title = ("Khởi động thử nghiệm lâm sàng thuốc kháng virus điều trị sốt xuất huyết "
+             "của Hyundai Bioscience")
+    assert news.is_relevant(title, VI_KEYWORDS) is True
+
+
+def test_베트남_매체는_해외로_분류된다():
+    assert news.is_domestic("vnexpress.net", "Thử nghiệm lâm sàng") is False
+    assert news.is_domestic("Báo Tuổi Trẻ", "Hyundai Bioscience thử nghiệm") is False
+
+
+@pytest.mark.parametrize("outlet,title,expected", [
+    (None, "현대바이오 임상 소식", "ko"),
+    ("vnexpress.net", "Thử nghiệm lâm sàng thuốc", "vi"),
+    (None, "Việt Nam thử nghiệm lâm sàng thuốc điều trị sốt xuất huyết", "vi"),
+    ("Reuters", "Hyundai Bioscience gets FDA nod", "en"),
+])
+def test_제목_언어를_알아본다(outlet, title, expected):
+    assert news.language_of(outlet, title) == expected
+
+
+def test_베트남어_임상_단어도_등급을_올린다():
+    assert news.classify(
+        "Khởi động thử nghiệm lâm sàng thuốc kháng virus điều trị sốt xuất huyết"
+    ) == sev.MEDIUM
+
+
+def test_세_지역_주소가_모두_다르다():
+    urls = {loc: news.RSS_URL.format(q="x", **cfg) for loc, cfg in news.LOCALES.items()}
+    assert len(set(urls.values())) == 3
+    assert "gl=VN" in urls["vi"] and "hl=vi" in urls["vi"]

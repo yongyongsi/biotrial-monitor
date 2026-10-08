@@ -40,6 +40,8 @@ RSS_URL = ("https://news.google.com/rss/search"
 LOCALES = {
     "ko": {"hl": "ko", "gl": "KR", "lang": "ko"},
     "en": {"hl": "en-US", "gl": "US", "lang": "en"},
+    # 댕기열 임상이 베트남에서 돌고 있다. 현지 보도가 가장 빠를 수 있다.
+    "vi": {"hl": "vi", "gl": "VN", "lang": "vi"},
 }
 
 # 이름이 비슷하지만 전혀 다른 회사·주제. 제목에 이것만 있으면 버린다.
@@ -50,6 +52,9 @@ EXCLUDE = (
 
 # 임상·규제와 직접 관련된 말. 들어 있으면 중요도를 올린다.
 CLINICAL_WORDS = (
+    # 베트남어 — 현지 보도용
+    "lâm sàng", "thử nghiệm", "phê duyệt", "điều trị", "bệnh nhân",
+    "kháng virus", "sốt xuất huyết", "giai đoạn", "thuốc",
     # 한국어
     "임상", "FDA", "식약처", "승인", "허가", "IND", "투약", "환자", "학회",
     "논문", "결과", "효능", "안전성", "전임상", "병용", "적응증", "품목허가",
@@ -167,6 +172,9 @@ def classify(title: str) -> str:
 
 
 # 매체 이름이 영문 도메인으로 오는 경우가 있다 (v.daum.net, news.mt.co.kr ...)
+# 베트남 매체 도메인
+_VN_DOMAIN = re.compile(r"(\.vn\b|vnexpress|tuoitre|thanhnien|vietnamnet|suckhoedoisong)", re.I)
+
 _KR_DOMAIN = re.compile(
     r"(\.kr\b|daum|naver|chosun|donga|joins|joongang|hankyung|mk\.co|yna\.|"
     r"edaily|mt\.co|sedaily|fnnews|etnews|dailypharm|medipana|hitnews|kpanews|"
@@ -179,6 +187,8 @@ def is_domestic(outlet: Optional[str], title: str) -> bool:
     매체 이름이 한글이 아니라 도메인으로 오는 경우가 있어서
     (예: v.daum.net) 제목의 언어와 도메인을 함께 본다.
     """
+    if outlet and _VN_DOMAIN.search(outlet):
+        return False
     if outlet:
         if re.search(r"[가-힣]", outlet):
             return True
@@ -186,6 +196,19 @@ def is_domestic(outlet: Optional[str], title: str) -> bool:
             return True
     # 한국 언론은 한국어로 쓴다. 제목이 한글이면 국내로 본다.
     return bool(re.search(r"[가-힣]", title or ""))
+
+
+# 베트남어 특유의 성조 기호. 제목 언어를 알아보는 데 쓴다.
+_VI_MARKS = re.compile(r"[ạảãáàăắằẳẵặâấầẩẫậđéèẻẽẹêếềểễệíìỉĩịóòỏõọôốồổỗộơớờởỡợúùủũụưứừửữựýỳỷỹỵ]", re.I)
+
+
+def language_of(outlet: Optional[str], title: str) -> str:
+    """제목 언어. 화면에 국가 표시를 붙이는 데 쓴다."""
+    if re.search(r"[가-힣]", title or ""):
+        return "ko"
+    if _VI_MARKS.search(title or "") or (outlet and _VN_DOMAIN.search(outlet)):
+        return "vi"
+    return "en"
 
 
 def fingerprint(title: str, published: Optional[datetime]) -> str:
