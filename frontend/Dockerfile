@@ -5,8 +5,10 @@ RUN npm install --no-audit --no-fund
 
 FROM node:20-alpine AS builder
 WORKDIR /app
-ARG NEXT_PUBLIC_API_BASE=http://localhost:8000
-ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE
+# standalone 빌드는 next.config 를 **빌드 시점에** 고정한다.
+# 그래서 프록시 주소를 런타임 환경변수로 주면 반영되지 않는다.
+ARG API_PROXY_TARGET=http://localhost:8000
+ENV API_PROXY_TARGET=$API_PROXY_TARGET
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

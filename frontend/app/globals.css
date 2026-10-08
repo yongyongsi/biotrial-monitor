@@ -484,3 +484,34 @@ details.help p {
   gap: 7px;
 }
 .section > .sub-head:first-of-type { margin-top: 4px; }
+
+/* ---------- 중요도 줄을 눌러 그 등급만 보기 ---------- */
+.summary-row {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.summary-row:disabled { cursor: default; }
+.summary-row .go {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-faint);
+  margin-left: 4px;
+  width: 18px;
+  text-align: center;
+}
+.summary-row.is-on {
+  border-color: var(--accent);
+  border-width: 2px;
+  border-left-width: 7px;
+  background: #f3f8fb;
+}
+.summary-row.is-on .go { color: var(--accent); }
+.summary-row.is-on .label { color: var(--accent); }
+
+.btn.filter-off {
+  margin: 0 0 14px;
+  border-color: var(--accent);
+  color: var(--accent);
+}

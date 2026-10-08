@@ -276,6 +276,9 @@ def disclosures_file(db: Session = Depends(get_db)) -> List[Dict[str, Any]]:
 
 @data_router.get("/meta.json")
 def meta_file() -> Dict[str, Any]:
+    # live=True 는 '지금 서버가 돌고 있다' 는 뜻이다.
+    # 정적 파일로 내보낸 meta.json 에는 이 값이 없으므로,
+    # 화면은 이것만 보고 직접 수집할 수 있는지 판단한다.
     return {"generated_at": _now().isoformat(), "periods": [0, 3, 7, 30], "live": True}
 
 

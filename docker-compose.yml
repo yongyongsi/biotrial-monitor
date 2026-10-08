@@ -50,14 +50,15 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_API_BASE: http://localhost:8000
+        API_PROXY_TARGET: http://backend:8000
     container_name: biotrial-frontend
     depends_on:
       backend:
         condition: service_healthy
     environment:
       TZ: Asia/Seoul
-      NEXT_PUBLIC_API_BASE: http://localhost:8000
+      # 화면이 /data/*.json 을 요청하면 백엔드로 넘긴다 (같은 주소처럼 보이게)
+      API_PROXY_TARGET: http://backend:8000
     ports:
       - "3000:3000"
 

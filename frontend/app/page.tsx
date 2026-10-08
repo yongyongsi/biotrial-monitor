@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChangeCard } from "@/components/ChangeCard";
 import { TrialCard } from "@/components/TrialCard";
-import { getDashboard, markServerAvailable, runCollect } from "@/lib/api";
-import type { Dashboard } from "@/lib/types";
+import { getDashboard, getMeta, markServerAvailable, runCollect } from "@/lib/api";
+import type { Dashboard, Severity } from "@/lib/types";
 
 /** 기간 선택. 기본은 '오늘' — 지금 무슨 일이 있었는지가 가장 중요하다. */
 const PERIODS = [
@@ -38,6 +38,9 @@ export default function HomePage() {
   const [showAllUpdates, setShowAllUpdates] = useState(false);
   const [showAllRegulatory, setShowAllRegulatory] = useState(false);
   const [showAllNews, setShowAllNews] = useState(false);
+  // 중요도를 누르면 그 등급만 본다 (다시 누르면 해제)
+  const [sevFilter, setSevFilter] = useState<Severity | null>(null);
+  const changesRef = useRef<HTMLElement | null>(null);
 
   // 처음 불러오던 '오늘' 응답이 늦게 도착해, 그사이 사용자가 고른 기간의 결과를
   // 덮어쓰는 문제가 있었다. 요청에 번호를 붙여 마지막 것만 반영한다.
@@ -71,19 +74,69 @@ export default function HomePage() {
   // 서버가 있으면 '지금 확인하기' 버튼을 보여준다.
   // GitHub Pages 는 서버가 없는 것이 확실하므로 아예 물어보지 않는다
   // (괜히 요청했다가 콘솔에 404 가 남는다).
+  // 직접 수집할 수 있는 서버가 있는지 확인한다.
+  // 이미 쓰고 있는 data/meta.json 을 재사용한다 — 서버가 내려줄 때만 live 가 붙는다.
   useEffect(() => {
     if (window.location.hostname.endsWith("github.io")) return;
-    fetch("api/health")
-      .then((r) => { if (r.ok) { markServerAvailable(); setHasServer(true); } })
+    getMeta()
+      .then((m) => { if (m?.live) { markServerAvailable(); setHasServer(true); } })
       .catch(() => { /* 서버 없음 — 읽기 전용으로 동작한다 */ });
   }, []);
 
+  function pickSeverity(s: Severity, count: number) {
+    if (count === 0) return;
+    const next = sevFilter === s ? null : s;
+    setSevFilter(next);
+    setShowAllUpdates(true);     // 걸러서 볼 때는 접지 않는다
+    // '누르면 그쪽으로 이동' — 목록까지 스크롤한다
+    window.setTimeout(() => {
+      changesRef.current?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto" : "smooth",
+        block: "start",
+      });
+    }, 60);
+  }
+
   function pickPeriod(d: number) {
     setDays(d);
+    setSevFilter(null);
     setShowAllUpdates(false);
     setShowAllRegulatory(false);
     setShowAllNews(false);
     try { window.localStorage.setItem(PERIOD_KEY, String(d)); } catch { /* 무시 */ }
+  }
+
+  /**
+   * 서버가 없는 곳(GitHub Pages)의 새로고침.
+   *
+   * 수집은 1시간마다 자동으로 도는 것이라 버튼을 눌러도 보통 내용이 그대로다.
+   * 그러면 사용자는 "눌러도 아무 일이 안 난다" 고 느낀다.
+   * 그래서 **무엇을 확인했고 결과가 무엇인지** 를 반드시 문장으로 알려준다.
+   */
+  async function reload() {
+    setBusy(true);
+    setNotice(null);
+    const before = data?.total_updates ?? -1;
+    try {
+      const next = await getDashboard(days);
+      setData(next);
+      setError(null);
+      const added = next.total_updates - before;
+      if (before >= 0 && added > 0) {
+        setNotice(`새로운 소식 ${added}건이 추가되었습니다.`);
+      } else {
+        const when = next.last_collection?.at_ko;
+        setNotice(
+          `최신 상태입니다. 새로 바뀐 내용이 없습니다.` +
+          (when ? ` (마지막 수집 ${when})` : "")
+        );
+      }
+    } catch {
+      setNotice("확인하지 못했습니다. 인터넷 연결을 확인해 주세요.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function refresh() {
@@ -126,6 +179,9 @@ export default function HomePage() {
   }
 
   const trials = tab === "KR" ? data.trials_domestic : data.trials_global;
+  const shown = sevFilter
+    ? data.changes.filter((c) => c.severity === sevFilter)
+    : data.changes;
 
   return (
     <>
@@ -164,29 +220,40 @@ export default function HomePage() {
         <p className="section-note">중요한 것부터 위에 있습니다.</p>
         <div className="summary">
           {data.summary.map((row) => (
-            <div
+            <button
               key={row.severity}
-              className={`summary-row sev-${row.severity} ${row.count === 0 ? "is-zero" : ""}`}
+              type="button"
+              className={`summary-row sev-${row.severity}`
+                + (row.count === 0 ? " is-zero" : "")
+                + (sevFilter === row.severity ? " is-on" : "")}
+              onClick={() => pickSeverity(row.severity, row.count)}
+              disabled={row.count === 0}
+              aria-pressed={sevFilter === row.severity}
             >
               <span className="icon" aria-hidden="true">{row.icon}</span>
               <span className="label">{row.severity_ko}</span>
               <span className="count">{row.count}</span>
               <span className="unit">건</span>
-            </div>
+              {row.count > 0 && (
+                <span className="go" aria-hidden="true">
+                  {sevFilter === row.severity ? "✕" : "›"}
+                </span>
+              )}
+            </button>
           ))}
         </div>
         {/* 서버가 없는 곳(GitHub Pages)에서는 직접 수집할 수 없다.
             대신 자동으로 언제 확인했는지를 보여준다. */}
         {!hasServer ? (
-          <button className="btn" onClick={() => void load(days)}>
-            🔄 새로고침
+          <button className="btn" onClick={() => void reload()} disabled={busy}>
+            {busy ? "확인하는 중…" : "🔄 새로고침"}
           </button>
         ) : (
           <button className="btn btn-primary" onClick={() => void refresh()} disabled={busy}>
             {busy ? "확인하는 중…" : "🔄 지금 새 정보 확인하기"}
           </button>
         )}
-        {notice && <div className="notice">{notice}</div>}
+        {notice && <div className="notice" role="status">{notice}</div>}
       </section>
 
       {/* 2) 관심 약물에 변화가 있는가 - 항상 맨 위 (요구사항 33-11) */}
@@ -199,12 +266,22 @@ export default function HomePage() {
       </section>
 
       {/* 새로운 변화 목록 */}
-      <section className="section">
-        <h2 className="section-title"><span aria-hidden="true">🧪</span>새로 바뀐 내용</h2>
+      <section className="section" ref={changesRef}>
+        <h2 className="section-title">
+          <span aria-hidden="true">🧪</span>
+          {sevFilter
+            ? `${data.summary.find((r) => r.severity === sevFilter)?.severity_ko}만 보기`
+            : "새로 바뀐 내용"}
+        </h2>
         <p className="section-note">
           공식 임상시험 등록정보와 전자공시에서 달라진 부분입니다.
         </p>
-        {data.changes.length === 0
+        {sevFilter && (
+          <button className="btn filter-off" onClick={() => setSevFilter(null)}>
+            ✕ 전체 보기로 돌아가기
+          </button>
+        )}
+        {shown.length === 0
           ? (
             <div className="empty">
               <p className="empty-title">✅ {data.period_ko}은 새로운 변화가 없습니다</p>
@@ -221,11 +298,11 @@ export default function HomePage() {
               )}
             </div>
           )
-          : (showAllUpdates ? data.changes : data.changes.slice(0, 5))
+          : (showAllUpdates ? shown : shown.slice(0, 5))
               .map((c) => <ChangeCard key={c.id} change={c} />)}
-        {!showAllUpdates && data.changes.length > 5 && (
+        {!showAllUpdates && shown.length > 5 && (
           <button className="btn" onClick={() => setShowAllUpdates(true)}>
-            나머지 {data.changes.length - 5}건 더 보기
+            나머지 {shown.length - 5}건 더 보기
           </button>
         )}
       </section>

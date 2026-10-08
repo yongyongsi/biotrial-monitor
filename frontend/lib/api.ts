@@ -33,6 +33,11 @@ export function getDashboard(days = 0): Promise<Dashboard> {
   return getJson<Dashboard>(`dashboard-${days}.json`);
 }
 
+/** 서버가 내려줄 때만 live=true 가 들어 있다. */
+export function getMeta(): Promise<{ generated_at: string; live?: boolean }> {
+  return getJson(`meta.json`);
+}
+
 export function getTrial(registryId: string): Promise<Trial> {
   return getJson<Trial>(`trials/${encodeURIComponent(registryId)}.json`);
 }

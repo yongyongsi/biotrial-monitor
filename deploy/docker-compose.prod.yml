@@ -56,8 +56,7 @@ services:
     build:
       context: ../frontend
       args:
-        # 같은 주소의 /api 를 쓴다 (프록시 뒤라 포트를 따로 열 필요가 없다)
-        NEXT_PUBLIC_API_BASE: "/"
+        API_PROXY_TARGET: http://backend:8000
     container_name: biotrial-frontend
     restart: unless-stopped
     depends_on:
@@ -65,7 +64,7 @@ services:
         condition: service_healthy
     environment:
       TZ: Asia/Seoul
-      NEXT_PUBLIC_API_BASE: "/"
+      API_PROXY_TARGET: http://backend:8000
 
   caddy:
     image: caddy:2-alpine
