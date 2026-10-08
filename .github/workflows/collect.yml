@@ -52,6 +52,11 @@ jobs:
       - name: 테스트 (코드를 고쳤을 때만)
         if: github.event_name == 'push'
         working-directory: backend
+        env:
+          # 설정하지 않으면 기본값이 PostgreSQL 이라 드라이버를 찾다 실패한다.
+          # 여기서는 SQLite 로 충분하다.
+          DATABASE_URL: sqlite:///./test.db
+          TZ: Asia/Seoul
         run: |
           pip install -q pytest
           python -m pytest tests/ -q
